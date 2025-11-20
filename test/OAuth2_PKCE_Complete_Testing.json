@@ -1,0 +1,723 @@
+{
+  "info": {
+    "_postman_id": "oauth2-pkce-complete-testing",
+    "name": "OAuth 2.0 + PKCE Complete Testing (회원가입부터)",
+    "description": "실제 비즈니스 로직에 맞춘 완전한 테스트: 회원가입 → 이메일 검증 → OAuth 로그인 → 토큰 사용",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Section 0: Setup",
+      "item": [
+        {
+          "name": "0-1. Register OAuth Client",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('✅ Status code is 201', function() {",
+                  "  pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test('✅ Client registered successfully', function() {",
+                  "  const response = pm.response.json();",
+                  "  pm.expect(response).to.have.property('message');",
+                  "  pm.expect(response).to.have.property('client');",
+                  "  pm.expect(response.client).to.have.property('clientId');",
+                  "  pm.expect(response.client).to.have.property('clientSecret');",
+                  "});",
+                  "",
+                  "// Store client credentials",
+                  "const response = pm.response.json();",
+                  "pm.collectionVariables.set('client_id', response.client.clientId);",
+                  "pm.collectionVariables.set('client_secret', response.client.clientSecret);",
+                  "",
+                  "console.log('✅ OAuth Client Registered');",
+                  "console.log('Client ID: ' + response.client.clientId);",
+                  "console.log('⚠️  Save client_secret: ' + response.client.clientSecret);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Test Mobile App\",\n  \"description\": \"OAuth 2.0 테스트용 모바일 앱\",\n  \"frontendUrl\": \"http://localhost:3000\",\n  \"redirectUris\": [\n    \"http://localhost:3000/callback\",\n    \"http://localhost:3001/callback\"\n  ],\n  \"maxTokensPerUser\": 5\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/clients/register",
+              "host": ["{{base_url}}"],
+              "path": ["api", "clients", "register"]
+            },
+            "description": "🔧 Step 0-1: OAuth 클라이언트(앱) 등록\n\n앱/웹사이트를 OAuth 시스템에 등록합니다.\n\n✅ client_id와 client_secret이 자동으로 변수에 저장됩니다."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Section 1: User Registration",
+      "item": [
+        {
+          "name": "1-1. User Registration",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('✅ Status code is 201', function() {",
+                  "  pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test('✅ Registration successful', function() {",
+                  "  const response = pm.response.json();",
+                  "  pm.expect(response).to.have.property('message');",
+                  "  pm.expect(response.message).to.include('Registration successful');",
+                  "});",
+                  "",
+                  "console.log('✅ User Registration Completed');",
+                  "console.log('⚠️  Next: Email verification required (check DB or email)');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"username\": \"{{username}}\",\n  \"password\": \"{{password}}\",\n  \"firstName\": \"Test\",\n  \"lastName\": \"User\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/register",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "register"]
+            },
+            "description": "📝 Step 1-1: 사용자 회원가입\n\n새로운 사용자 계정을 생성합니다.\n\n⚠️  다음 단계: Section 2에서 이메일 검증 필요"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Section 2: Email Verification",
+      "item": [
+        {
+          "name": "2-1. [Manual] Verify Email in DB",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}",
+              "host": ["{{base_url}}"]
+            },
+            "description": "📧 Step 2-1: 이메일 검증 (수동)\n\n**이 단계는 Postman이 아닌 DB에서 직접 실행합니다:**\n\n```sql\nUPDATE users\nSET email_verified = true\nWHERE email = 'testuser@example.com';\n```\n\n**확인:**\n```sql\nSELECT email, email_verified, enabled\nFROM users\nWHERE email = 'testuser@example.com';\n```\n\n✅ 완료 후 Section 3로 이동"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Section 3: OAuth 2.0 + PKCE Login",
+      "item": [
+        {
+          "name": "3-1. Generate Code Challenge",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "// Generate random code_verifier (128 characters - RFC 7636)",
+                  "const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~';",
+                  "let codeVerifier = '';",
+                  "for (let i = 0; i < 128; i++) {",
+                  "  codeVerifier += chars.charAt(Math.floor(Math.random() * chars.length));",
+                  "}",
+                  "",
+                  "// Generate code_challenge using SHA-256 + Base64URL encoding",
+                  "const hash = CryptoJS.SHA256(codeVerifier);",
+                  "const codeChallenge = CryptoJS.enc.Base64.stringify(hash)",
+                  "  .replace(/\\+/g, '-')",
+                  "  .replace(/\\//g, '_')",
+                  "  .replace(/=/g, '');",
+                  "",
+                  "// Generate random state (CSRF protection)",
+                  "const state = pm.variables.replaceIn('{{$randomUUID}}');",
+                  "",
+                  "// Store in collection variables",
+                  "pm.collectionVariables.set('code_verifier', codeVerifier);",
+                  "pm.collectionVariables.set('code_challenge', codeChallenge);",
+                  "pm.collectionVariables.set('state', state);",
+                  "",
+                  "console.log('✅ PKCE Values Generated');",
+                  "console.log('Code Verifier: ' + codeVerifier.substring(0, 20) + '...');",
+                  "console.log('Code Challenge: ' + codeChallenge);",
+                  "console.log('State: ' + state);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}",
+              "host": ["{{base_url}}"]
+            },
+            "description": "🔐 Step 3-1: PKCE Code Challenge 생성\n\nPre-request Script만 실행됩니다 (실제 HTTP 요청 없음).\n\n생성되는 값:\n- code_verifier (128자)\n- code_challenge (SHA256 해시)\n- state (CSRF 방지)\n\n✅ Console에서 생성된 값 확인"
+          },
+          "response": []
+        },
+        {
+          "name": "3-2. Authorization Request (with PKCE)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/oauth/authorize?client_id={{client_id}}&redirect_uri={{redirect_uri}}&response_type=code&state={{state}}&code_challenge={{code_challenge}}&code_challenge_method=S256",
+              "host": ["{{base_url}}"],
+              "path": ["oauth", "authorize"],
+              "query": [
+                {
+                  "key": "client_id",
+                  "value": "{{client_id}}"
+                },
+                {
+                  "key": "redirect_uri",
+                  "value": "{{redirect_uri}}"
+                },
+                {
+                  "key": "response_type",
+                  "value": "code"
+                },
+                {
+                  "key": "state",
+                  "value": "{{state}}"
+                },
+                {
+                  "key": "code_challenge",
+                  "value": "{{code_challenge}}"
+                },
+                {
+                  "key": "code_challenge_method",
+                  "value": "S256"
+                }
+              ]
+            },
+            "description": "🌐 Step 3-2: Authorization 요청 (PKCE 포함)\n\n로그인 페이지를 요청합니다.\n\n예상 응답:\n- HTML 로그인 폼\n- 숨겨진 필드에 code_challenge 포함\n\n실제 서비스에서는 사용자가 브라우저에서 이 URL을 방문합니다."
+          },
+          "response": []
+        },
+        {
+          "name": "3-3. Login & Get Authorization Code",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// Extract authorization code from Location header",
+                  "const location = pm.response.headers.get('Location');",
+                  "console.log('📍 Redirect Location: ' + location);",
+                  "",
+                  "if (location) {",
+                  "  try {",
+                  "    const url = new URL(location);",
+                  "    const authCode = url.searchParams.get('code');",
+                  "    const returnedState = url.searchParams.get('state');",
+                  "    ",
+                  "    pm.collectionVariables.set('authorization_code', authCode);",
+                  "    ",
+                  "    pm.test('✅ Status is 302 (redirect)', function() {",
+                  "      pm.expect(pm.response.code).to.equal(302);",
+                  "    });",
+                  "    ",
+                  "    pm.test('✅ Authorization Code received', function() {",
+                  "      pm.expect(authCode).to.exist;",
+                  "      pm.expect(authCode).to.not.be.empty;",
+                  "    });",
+                  "    ",
+                  "    pm.test('✅ State parameter matches', function() {",
+                  "      pm.expect(returnedState).to.equal(pm.collectionVariables.get('state'));",
+                  "    });",
+                  "    ",
+                  "    console.log('✅ Authorization Code: ' + authCode.substring(0, 20) + '...');",
+                  "    console.log('✅ State verified');",
+                  "  } catch (e) {",
+                  "    console.error('⚠️  Error parsing redirect URL: ' + e);",
+                  "  }",
+                  "} else {",
+                  "  console.warn('⚠️  No Location header found');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/x-www-form-urlencoded"
+              }
+            ],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "email",
+                  "value": "{{email}}"
+                },
+                {
+                  "key": "password",
+                  "value": "{{password}}"
+                },
+                {
+                  "key": "client_id",
+                  "value": "{{client_id}}"
+                },
+                {
+                  "key": "redirect_uri",
+                  "value": "{{redirect_uri}}"
+                },
+                {
+                  "key": "state",
+                  "value": "{{state}}"
+                },
+                {
+                  "key": "code_challenge",
+                  "value": "{{code_challenge}}"
+                },
+                {
+                  "key": "code_challenge_method",
+                  "value": "S256"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/oauth/login",
+              "host": ["{{base_url}}"],
+              "path": ["oauth", "login"]
+            },
+            "description": "🔑 Step 3-3: 로그인 & Authorization Code 획득\n\n이메일/비밀번호로 로그인하여 Authorization Code를 받습니다.\n\n⚠️  Postman Settings:\n- \"Automatically follow redirects\" OFF\n\n예상:\n- 302 Redirect\n- Location header에 authorization_code 포함\n- authorization_code가 자동으로 변수에 저장됨"
+          },
+          "response": []
+        },
+        {
+          "name": "3-4. Token Exchange (with PKCE)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('✅ Status code is 200', function() {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('✅ Response contains tokens', function() {",
+                  "  const response = pm.response.json();",
+                  "  pm.expect(response).to.have.property('access_token');",
+                  "  pm.expect(response).to.have.property('refresh_token');",
+                  "  pm.expect(response).to.have.property('token_type');",
+                  "  pm.expect(response.token_type).to.equal('Bearer');",
+                  "});",
+                  "",
+                  "// Store tokens",
+                  "const response = pm.response.json();",
+                  "pm.collectionVariables.set('access_token', response.access_token);",
+                  "pm.collectionVariables.set('refresh_token', response.refresh_token);",
+                  "",
+                  "console.log('✅ PKCE Flow Completed Successfully!');",
+                  "console.log('Access Token: ' + response.access_token.substring(0, 30) + '...');",
+                  "console.log('Refresh Token: ' + response.refresh_token.substring(0, 30) + '...');",
+                  "console.log('Token Type: ' + response.token_type);",
+                  "console.log('Expires In: ' + response.expires_in + 'ms');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/x-www-form-urlencoded"
+              }
+            ],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "grant_type",
+                  "value": "authorization_code"
+                },
+                {
+                  "key": "code",
+                  "value": "{{authorization_code}}"
+                },
+                {
+                  "key": "client_id",
+                  "value": "{{client_id}}"
+                },
+                {
+                  "key": "client_secret",
+                  "value": "{{client_secret}}"
+                },
+                {
+                  "key": "redirect_uri",
+                  "value": "{{redirect_uri}}"
+                },
+                {
+                  "key": "code_verifier",
+                  "value": "{{code_verifier}}"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/oauth/token",
+              "host": ["{{base_url}}"],
+              "path": ["oauth", "token"]
+            },
+            "description": "🎉 Step 3-4: Token Exchange (PKCE Verification)\n\nAuthorization Code를 Access Token으로 교환합니다.\n\n⚠️  CRITICAL:\n- code_verifier가 3-1에서 생성한 값과 일치해야 함\n- 서버가 SHA256(code_verifier) == code_challenge 검증\n\n성공 시:\n- access_token (24시간 유효)\n- refresh_token (7일 유효)\n- 자동으로 변수에 저장됨"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Section 4: Token Usage",
+      "item": [
+        {
+          "name": "4-1. Refresh Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('✅ Status code is 200', function() {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('✅ New tokens received', function() {",
+                  "  const response = pm.response.json();",
+                  "  pm.expect(response).to.have.property('accessToken');",
+                  "  pm.expect(response).to.have.property('refreshToken');",
+                  "});",
+                  "",
+                  "// Update tokens",
+                  "const response = pm.response.json();",
+                  "pm.collectionVariables.set('access_token', response.accessToken);",
+                  "pm.collectionVariables.set('refresh_token', response.refreshToken);",
+                  "",
+                  "console.log('✅ Tokens refreshed successfully');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{refresh_token}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/refresh",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "refresh"]
+            },
+            "description": "🔄 Step 4-1: Refresh Token으로 새 Access Token 발급\n\nAccess Token이 만료되었을 때 사용합니다.\n\n언제 사용?\n- Access Token 만료 (24시간 후)\n- 새로운 Access Token + Refresh Token 획득"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Section 5: Error Tests",
+      "item": [
+        {
+          "name": "5-1. Error: Invalid code_verifier",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('❌ Status code is 400', function() {",
+                  "  pm.response.to.have.status(400);",
+                  "});",
+                  "",
+                  "pm.test('❌ Error is invalid_grant', function() {",
+                  "  const response = pm.response.json();",
+                  "  pm.expect(response.error).to.equal('invalid_grant');",
+                  "});",
+                  "",
+                  "console.log('❌ PKCE Verification Failed (Expected)');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/x-www-form-urlencoded"
+              }
+            ],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "grant_type",
+                  "value": "authorization_code"
+                },
+                {
+                  "key": "code",
+                  "value": "{{authorization_code}}"
+                },
+                {
+                  "key": "client_id",
+                  "value": "{{client_id}}"
+                },
+                {
+                  "key": "client_secret",
+                  "value": "{{client_secret}}"
+                },
+                {
+                  "key": "redirect_uri",
+                  "value": "{{redirect_uri}}"
+                },
+                {
+                  "key": "code_verifier",
+                  "value": "WRONG_VERIFIER"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/oauth/token",
+              "host": ["{{base_url}}"],
+              "path": ["oauth", "token"]
+            },
+            "description": "🧪 ERROR TEST: 잘못된 code_verifier\n\n예상 결과:\n❌ 400 Bad Request\n❌ error: invalid_grant\n❌ PKCE verification failed"
+          },
+          "response": []
+        },
+        {
+          "name": "5-2. Error: Missing code_verifier",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('❌ Status code is 400', function() {",
+                  "  pm.response.to.have.status(400);",
+                  "});",
+                  "",
+                  "pm.test('❌ Error mentions code_verifier', function() {",
+                  "  const response = pm.response.json();",
+                  "  pm.expect(response.error).to.equal('invalid_grant');",
+                  "  pm.expect(response.error_description).to.include('code_verifier');",
+                  "});",
+                  "",
+                  "console.log('❌ code_verifier required (Expected)');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/x-www-form-urlencoded"
+              }
+            ],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "grant_type",
+                  "value": "authorization_code"
+                },
+                {
+                  "key": "code",
+                  "value": "{{authorization_code}}"
+                },
+                {
+                  "key": "client_id",
+                  "value": "{{client_id}}"
+                },
+                {
+                  "key": "client_secret",
+                  "value": "{{client_secret}}"
+                },
+                {
+                  "key": "redirect_uri",
+                  "value": "{{redirect_uri}}"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/oauth/token",
+              "host": ["{{base_url}}"],
+              "path": ["oauth", "token"]
+            },
+            "description": "🧪 ERROR TEST: code_verifier 누락\n\ncode_challenge를 사용했으므로 code_verifier는 필수입니다.\n\n예상 결과:\n❌ 400 Bad Request\n❌ error: invalid_grant\n❌ code_verifier is required"
+          },
+          "response": []
+        },
+        {
+          "name": "5-3. Error: Reuse Authorization Code",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('❌ Status code is 400', function() {",
+                  "  pm.response.to.have.status(400);",
+                  "});",
+                  "",
+                  "pm.test('❌ Code already used', function() {",
+                  "  const response = pm.response.json();",
+                  "  pm.expect(response.error).to.equal('invalid_grant');",
+                  "});",
+                  "",
+                  "console.log('❌ Authorization Code already used (Expected)');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/x-www-form-urlencoded"
+              }
+            ],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "grant_type",
+                  "value": "authorization_code"
+                },
+                {
+                  "key": "code",
+                  "value": "{{authorization_code}}"
+                },
+                {
+                  "key": "client_id",
+                  "value": "{{client_id}}"
+                },
+                {
+                  "key": "client_secret",
+                  "value": "{{client_secret}}"
+                },
+                {
+                  "key": "redirect_uri",
+                  "value": "{{redirect_uri}}"
+                },
+                {
+                  "key": "code_verifier",
+                  "value": "{{code_verifier}}"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/oauth/token",
+              "host": ["{{base_url}}"],
+              "path": ["oauth", "token"]
+            },
+            "description": "🧪 ERROR TEST: Authorization Code 재사용\n\n3-4에서 이미 사용한 code를 다시 사용 시도.\n\n예상 결과:\n❌ 400 Bad Request\n❌ error: invalid_grant\n❌ Authorization code already used\n\n이유: Authorization Code는 일회성입니다."
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8080",
+      "type": "string"
+    },
+    {
+      "key": "redirect_uri",
+      "value": "http://localhost:3000/callback",
+      "type": "string"
+    },
+    {
+      "key": "email",
+      "value": "testuser@example.com",
+      "type": "string"
+    },
+    {
+      "key": "username",
+      "value": "testuser",
+      "type": "string"
+    },
+    {
+      "key": "password",
+      "value": "TestPassword123!",
+      "type": "string"
+    },
+    {
+      "key": "client_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "client_secret",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "code_verifier",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "code_challenge",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "state",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "authorization_code",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "access_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "refresh_token",
+      "value": "",
+      "type": "string"
+    }
+  ]
+}
