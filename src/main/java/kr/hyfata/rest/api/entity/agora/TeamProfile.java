@@ -1,7 +1,6 @@
 package kr.hyfata.rest.api.entity.agora;
 
 import jakarta.persistence.*;
-import kr.hyfata.rest.api.entity.User;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -23,7 +22,7 @@ public class TeamProfile {
     @OneToOne(fetch = FetchType.LAZY)
     @MapsId
     @JoinColumn(name = "id")
-    private User user;
+    private AgoraUserProfile user;
 
     @Column(nullable = false, length = 100)
     private String displayName;
