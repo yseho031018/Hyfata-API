@@ -7,12 +7,22 @@
 ## Quick Commands
 
 ```bash
-./gradlew build          # 빌드
-./gradlew build -x test  # 테스트 제외 빌드
-./gradlew bootRun        # 실행
-./gradlew test           # 테스트
-./gradlew compileJava    # 컴파일만
+./gradlew build                                      # 빌드
+./gradlew build -x test                             # 테스트 제외 빌드
+./gradlew bootRun -Dspring.profiles.active=dev      # 실행
+./gradlew test                                      # 테스트
+./gradlew compileJava                               # 컴파일만
 ```
+
+## Work Completion Checklist
+
+**모든 작업 완료 후 반드시 다음 순서로 실행:**
+
+1. `./gradlew test` - 모든 테스트 실행
+2. `./gradlew build` - 빌드 확인 (테스트 포함)
+3. `./gradlew bootRun -Dspring.profiles.active=dev` - 애플리케이션 정상 실행 확인
+
+⚠️ 테스트 또는 빌드 실패 시 수정 후 다시 위 순서대로 진행
 
 ## Architecture
 

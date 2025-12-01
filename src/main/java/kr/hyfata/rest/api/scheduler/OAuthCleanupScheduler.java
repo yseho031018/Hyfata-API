@@ -5,6 +5,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 
@@ -23,6 +24,7 @@ public class OAuthCleanupScheduler {
      * 만료된 Authorization Code 정리
      * 매 시간마다 실행 (1시간 = 3600000ms)
      */
+    @Transactional
     @Scheduled(fixedRate = 3600000)
     public void cleanupExpiredAuthorizationCodes() {
         try {
